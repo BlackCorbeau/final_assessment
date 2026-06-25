@@ -252,11 +252,11 @@ resource "vkcs_networking_floatingip_associate" "bastion" {
 }
 
 # --- Управляемая PostgreSQL ---
-# --- Управляемая PostgreSQL ---
 resource "vkcs_db_instance" "postgres" {
   name        = "${var.project_name}-postgres"
-  flavor_id   = "db1-1-2-10"
-  size        = 10                     # вместо volume_size
+  flavor_id   = "db1-1-2-10"          # 1 vCPU, 2GB RAM, 10GB SSD
+  size        = 10                    # размер диска в ГБ
+  volume_type = "ceph-ssd"            # тип тома (обязательно)
   network {
     uuid = vkcs_networking_network.main.id
   }
@@ -265,7 +265,6 @@ resource "vkcs_db_instance" "postgres" {
     type    = "postgresql"
     version = "14"
   }
-  # security_group_ids убираем, если не поддерживается
 }
 
 resource "vkcs_db_database" "app_db" {
