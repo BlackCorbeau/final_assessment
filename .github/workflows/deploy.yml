@@ -1,0 +1,159 @@
+name: Terraform CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  TF_ROOT: terraform
+
+jobs:
+  plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
+
+      - name: Create SSH public key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PUBLIC_KEY }}" > ~/.ssh/id_rsa.pub
+          chmod 644 ~/.ssh/id_rsa.pub
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.TF_ROOT }}
+        env:
+          TF_VAR_vkcs_username: ${{ secrets.VKCS_USERNAME }}
+          TF_VAR_vkcs_password: ${{ secrets.VKCS_PASSWORD }}
+          TF_VAR_vkcs_project_id: ${{ secrets.VKCS_PROJECT_ID }}
+          TF_VAR_vkcs_region: ${{ secrets.VKCS_REGION }}
+          TF_VAR_vkcs_auth_url: ${{ secrets.VKCS_AUTH_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ${{ env.TF_ROOT }}
+        env:
+          TF_VAR_vkcs_username: ${{ secrets.VKCS_USERNAME }}
+          TF_VAR_vkcs_password: ${{ secrets.VKCS_PASSWORD }}
+          TF_VAR_vkcs_project_id: ${{ secrets.VKCS_PROJECT_ID }}
+          TF_VAR_vkcs_region: ${{ secrets.VKCS_REGION }}
+          TF_VAR_vkcs_auth_url: ${{ secrets.VKCS_AUTH_URL }}
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -out=tfplan
+        working-directory: ${{ env.TF_ROOT }}
+        env:
+          TF_VAR_vkcs_username: ${{ secrets.VKCS_USERNAME }}
+          TF_VAR_vkcs_password: ${{ secrets.VKCS_PASSWORD }}
+          TF_VAR_vkcs_project_id: ${{ secrets.VKCS_PROJECT_ID }}
+          TF_VAR_vkcs_region: ${{ secrets.VKCS_REGION }}
+          TF_VAR_vkcs_auth_url: ${{ secrets.VKCS_AUTH_URL }}
+          TF_VAR_my_ip: ${{ secrets.MY_IP }}
+          TF_VAR_ssh_public_key: "~/.ssh/id_rsa.pub"
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+
+      - name: Upload Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.TF_ROOT }}/tfplan
+
+      - name: Comment Plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const planOutput = `${{ steps.plan.outputs.stdout }}`;
+            const truncated = planOutput.length > 60000 ? planOutput.substring(0, 60000) + '\n... (truncated)' : planOutput;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `### Terraform Plan Output\n\`\`\`\n${truncated}\n\`\`\``
+            });
+
+  apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: plan
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
+
+      - name: Create SSH public key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PUBLIC_KEY }}" > ~/.ssh/id_rsa.pub
+          chmod 644 ~/.ssh/id_rsa.pub
+
+      - name: Download Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.TF_ROOT }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.TF_ROOT }}
+        env:
+          TF_VAR_vkcs_username: ${{ secrets.VKCS_USERNAME }}
+          TF_VAR_vkcs_password: ${{ secrets.VKCS_PASSWORD }}
+          TF_VAR_vkcs_project_id: ${{ secrets.VKCS_PROJECT_ID }}
+          TF_VAR_vkcs_region: ${{ secrets.VKCS_REGION }}
+          TF_VAR_vkcs_auth_url: ${{ secrets.VKCS_AUTH_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: ${{ env.TF_ROOT }}
+        env:
+          TF_VAR_vkcs_username: ${{ secrets.VKCS_USERNAME }}
+          TF_VAR_vkcs_password: ${{ secrets.VKCS_PASSWORD }}
+          TF_VAR_vkcs_project_id: ${{ secrets.VKCS_PROJECT_ID }}
+          TF_VAR_vkcs_region: ${{ secrets.VKCS_REGION }}
+          TF_VAR_vkcs_auth_url: ${{ secrets.VKCS_AUTH_URL }}
+          TF_VAR_my_ip: ${{ secrets.MY_IP }}
+          TF_VAR_ssh_public_key: "~/.ssh/id_rsa.pub"
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+
+      # --- Интеграция с ArgoCD: обновление ConfigMap ---
+      - name: Update ConfigMap for ArgoCD
+        run: |
+          cd ${{ env.TF_ROOT }}
+          LB_IP=$(terraform output -raw load_balancer_ip)
+          cd ../kubernetes
+          sed -i "s/LB_IP:.*/LB_IP: \"$LB_IP\"/" configmap.yaml
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add configmap.yaml
+          git commit -m "Update LB IP to $LB_IP [skip ci]" || echo "No changes"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+        env:
+          TF_VAR_vkcs_username: ${{ secrets.VKCS_USERNAME }}
+          TF_VAR_vkcs_password: ${{ secrets.VKCS_PASSWORD }}
+          TF_VAR_vkcs_project_id: ${{ secrets.VKCS_PROJECT_ID }}
+          TF_VAR_vkcs_region: ${{ secrets.VKCS_REGION }}
+          TF_VAR_vkcs_auth_url: ${{ secrets.VKCS_AUTH_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
