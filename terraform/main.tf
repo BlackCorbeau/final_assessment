@@ -252,11 +252,11 @@ resource "vkcs_networking_floatingip_associate" "bastion" {
 }
 
 # --- Управляемая PostgreSQL ---
+# --- Управляемая PostgreSQL ---
 resource "vkcs_db_instance" "postgres" {
   name        = "${var.project_name}-postgres"
   flavor_id   = "db1-1-2-10"
-  volume_size = 10
-  volume_type = "ceph-ssd"
+  size        = 10                     # вместо volume_size
   network {
     uuid = vkcs_networking_network.main.id
   }
@@ -265,18 +265,18 @@ resource "vkcs_db_instance" "postgres" {
     type    = "postgresql"
     version = "14"
   }
-  security_group_ids = [vkcs_networking_secgroup.db_sg.id]
+  # security_group_ids убираем, если не поддерживается
 }
 
 resource "vkcs_db_database" "app_db" {
-  instance_id = vkcs_db_instance.postgres.id
-  name        = "app_db"
+  dbms_id = vkcs_db_instance.postgres.id
+  name    = "app_db"
 }
 
 resource "vkcs_db_user" "app_user" {
-  instance_id = vkcs_db_instance.postgres.id
-  name        = "app_user"
-  password    = random_password.db_password.result
+  dbms_id  = vkcs_db_instance.postgres.id
+  name     = "app_user"
+  password = random_password.db_password.result
 }
 
 resource "random_password" "db_password" {
