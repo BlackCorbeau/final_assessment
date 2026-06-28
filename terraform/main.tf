@@ -258,7 +258,7 @@ resource "vkcs_db_instance" "postgres" {
   size        = 10                    # размер диска в ГБ
   volume_type = "ceph-ssd"            # тип тома (обязательно)
   network {
-    uuid = vkcs_networking_network.main.id
+    subnet_id = vkcs_networking_subnet.private.id
   }
   availability_zone = "MS1"
   datastore {
