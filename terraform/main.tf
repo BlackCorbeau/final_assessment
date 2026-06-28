@@ -188,7 +188,7 @@ resource "vkcs_lb_pool" "web" {
 resource "vkcs_lb_monitor" "web" {
   pool_id     = vkcs_lb_pool.web.id
   type        = "HTTP"
-  url_path    = "/"
+  url_path    = "/DevOps"
   delay       = 10
   timeout     = 5
   max_retries = 3
