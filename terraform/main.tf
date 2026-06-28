@@ -275,10 +275,5 @@ resource "vkcs_db_database" "app_db" {
 resource "vkcs_db_user" "app_user" {
   dbms_id  = vkcs_db_instance.postgres.id
   name     = "app_user"
-  password = random_password.db_password.result
-}
-
-resource "random_password" "db_password" {
-  length  = 16
-  special = false
+  password = "*#User23786590#*"
 }

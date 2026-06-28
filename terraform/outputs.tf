@@ -32,9 +32,3 @@ output "db_user" {
   value = vkcs_db_user.app_user.name
   description = "Имя пользователя БД"
 }
-
-output "db_password" {
-  value = random_password.db_password.result
-  description = "Пароль пользователя БД (не используется приложением)"
-  sensitive = true
-}
