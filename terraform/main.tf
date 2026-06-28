@@ -152,12 +152,35 @@ resource "vkcs_compute_instance" "web" {
   user_data = <<-EOF
     #!/bin/bash
     set -e
+    
+    # Установка Docker
     apt-get update
     apt-get install -y docker.io
     systemctl enable docker
     systemctl start docker
-
-    docker run -d --restart=always -p 80:80 ${var.docker_image}
+    
+    # Ждём, пока Docker-демон полностью запустится
+    sleep 5
+      
+    # Запускаем контейнер с повторными попытками, если образ не скачался
+    MAX_ATTEMPTS=5
+    ATTEMPT=0
+    until [ $ATTEMPT -ge $MAX_ATTEMPTS ]
+    do
+      echo "Attempt $((ATTEMPT+1)): pulling and running container..."
+      docker run -d --restart=always -p 80:80 ${var.docker_image} && break
+      ATTEMPT=$((ATTEMPT+1))
+      echo "Failed. Retrying in 10 seconds..."
+      sleep 10
+    done
+    
+    # Если после всех попыток контейнер не запустился – пишем ошибку в лог
+    if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+      echo "ERROR: Failed to run container after $MAX_ATTEMPTS attempts." >&2
+      exit 1
+    fi
+    
+    echo "Container started successfully."
   EOF
 }
 

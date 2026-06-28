@@ -74,7 +74,7 @@ variable "volume_size_bastion" {
 variable "docker_image" {
   description = "Полное имя Docker-образа (с тегом)"
   type        = string
-  default     = "git.rustprogersteam.ru/black_raven/myresume/resume:485eb08da772e39dbfb7edb0c41de3d617ef7516"
+  default     = "git.rustprogersteam.ru/black_raven/myresume/resume:latest"
 }
 
 # --- Аутентификация VKCS ---
