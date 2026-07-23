@@ -18,7 +18,7 @@
 
 ### Схема
 
-![Архитектурная схема](./exports/VKC_ARCH_M08_highload_store_diogram_РемизовКЛ_20260619.drawio.png)
+![Архитектурная схема](./exports/VKC_PROJ_V01_architecture.drawio.png)
 
 *Схема создана в draw.io и отражает все компоненты инфраструктуры.*
 
